@@ -9,7 +9,7 @@
 
 using PyCall
 using FileIO
-using CloudGraphs
+# using CloudGraphs
 
 # Allow the local directory to be used
 cd("/home/gears/roverlock");
@@ -21,6 +21,7 @@ function juliaDataLoop(rover)
     println("[Julia Data Loop] Should run = $shouldRun");
     while shouldRun
         # Check length of queue
+        rover[:iterateDataProcessor]()
         frameCount = rover[:getBotFrameCount]()
         println("[Julia Data Loop] Image frame count = $frameCount");
         imIndex = 1
@@ -30,11 +31,11 @@ function juliaDataLoop(rover)
             out = open("image$imIndex.jpg","w")
             write(out,frame)
             close(out)
-            imIndex = imIndex+1
+            # imIndex = imIndex+1
             # println("[Julia Data Loop] Got image = $frame");
             frameCount = rover[:getBotFrameCount]()
         end
-        sleep(1);
+        # sleep(1);
     end
     print("[Julia Data Loop] I'm out!");
 end
@@ -47,6 +48,6 @@ rover = roverModule[:PS3Rover]()
 # Initialize
 rover[:initialize]()
 # Start it.
-pythonLoop = @async rover[:robotLoop]()
-# juliaLoop = juliaDataLoop(rover)
+# pythonLoop = @async rover[:robotLoop]()
+juliaDataLoop(rover)
 # wait(juliaLoop)

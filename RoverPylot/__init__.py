@@ -99,11 +99,11 @@ class PS3Rover(Rover20):
         signal.signal(signal.SIGINT, _signal_handler)
 
         # Loop until user hits quit button on controller
-        while not self.quit:
-            pass
-
-        # Shut down Rover
-        rover.close()
+        # while not self.quit:
+        #     pass
+        #
+        # # Shut down Rover
+        # rover.close()
 
     def getBotFrameCount(self):
         print "[Python] Count of botframes = " + str(len(self.botFrames))
@@ -142,7 +142,7 @@ class PS3Rover(Rover20):
         else:
             self.moveCameraVertical(0)
 
-        time.sleep(0.1) 
+        time.sleep(0.1)
 
         # Set treads based on axes
         # self.setTreads(self.axis(1), self.axis(3))
@@ -151,13 +151,11 @@ class PS3Rover(Rover20):
         try:
             if cv:
                 # Save image to file on disk and load as OpenCV image
-                #fname = 'tmp.jpg'
-                #fd = open(fname, 'w')
-                #fd.write(jpegbytes)
-                #fd.close()
-                #image = cv.LoadImage(fname)
-
-                # Show image
+                # fname = 'tmp.jpg'
+                # fd = open(fname, 'w')
+                # fd.write(jpegbytes)
+                # fd.close()
+                # image = cv.LoadImage(fname)
                 # cv.ShowImage(self.wname, image )
                 # if cv.WaitKey(1) & 0xFF == 27: # ESC
                 #    self.quit = True

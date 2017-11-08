@@ -100,7 +100,6 @@ class Rover:
         # Receive images on another thread until closed
         self.is_active = True
         self.reader_thread = _MediaThread(self)
-        self.reader_thread.start()
 
 
     def close(self):
@@ -132,6 +131,9 @@ class Rover:
             zero value stops the camera from moving.
         '''
         self.cameraVertical.move(where)
+
+    def iterateDataProcessor(self):
+        self.reader_thread.iterate()
 
     def _startKeepaliveTask(self,):
         self._sendCommandByteRequest(255)
@@ -261,28 +263,24 @@ class _RoverBlowfish(Blowfish):
 
 
 # A thread for reading streaming media from the Rover
-class _MediaThread(threading.Thread):
+class _MediaThread():
 
     def __init__(self, rover):
-
-        threading.Thread.__init__(self)
-
         self.rover = rover
         self.BUFSIZE = 1024
-
-    def run(self):
-
         # Accumulates media bytes
-        mediabytes = ''
+        self.mediabytes = ''
 
+    def iterate(self):
         # Starts True; set to False by Rover.close()
-        while self.rover.is_active:
+        if self.rover.is_active:
+            print "[Python MediaThread] Acquiring data."
 
             # Grab bytes from rover, halting on failure
             try:
                 buf = self.rover.mediasock.recv(self.BUFSIZE)
             except:
-                break
+                return
 
             # Do we have a media frame start?
             k = buf.find('MO_V')
@@ -291,38 +289,37 @@ class _MediaThread(threading.Thread):
             if k  >= 0:
 
                 # Already have media bytes?
-                if len(mediabytes) > 0:
+                if len(self.mediabytes) > 0:
 
                     # Yes: add to media bytes up through start of new
-                    mediabytes += buf[0:k]
+                    self.mediabytes += buf[0:k]
 
                     # Both video and audio messages are time-stamped in 10msec units
-                    timestamp = bytes_to_uint(mediabytes, 23)
+                    timestamp = bytes_to_uint(self.mediabytes, 23)
 
                     # Video bytes: call processing routine
-                    if ord(mediabytes[4]) == 1:
-                        self.rover.processVideo(mediabytes[36:], timestamp)
+                    if ord(self.mediabytes[4]) == 1:
+                        self.rover.processVideo(self.mediabytes[36:], timestamp)
 
                     # Audio bytes: call processing routine
                     else:
-                        audsize = bytes_to_uint(mediabytes, 36)
+                        audsize = bytes_to_uint(self.mediabytes, 36)
                         sampend = 40 + audsize
-                        offset = bytes_to_short(mediabytes, sampend)
-                        index  = ord(mediabytes[sampend+2])
-                        pcmsamples = decodeADPCMToPCM(mediabytes[40:sampend], offset, index)
+                        offset = bytes_to_short(self.mediabytes, sampend)
+                        index  = ord(self.mediabytes[sampend+2])
+                        pcmsamples = decodeADPCMToPCM(self.mediabytes[40:sampend], offset, index)
                         # self.rover.processAudio(pcmsamples, timestamp)
 
                     # Start over with new bytes
-                    mediabytes = buf[k:]
+                    self.mediabytes = buf[k:]
 
                 # No media bytes yet: start with new bytes
                 else:
-                    mediabytes = buf[k:]
+                    self.mediabytes = buf[k:]
 
             # No: accumulate media bytes
             else:
-
-                mediabytes += buf
+                self.mediabytes += buf
 
 class _RoverTread(object):
 
