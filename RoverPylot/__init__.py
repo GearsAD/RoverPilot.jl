@@ -50,12 +50,57 @@ try:
 except:
     cv = None
 
+"""
+Rover state class with some meta for calculating information about the edges between states
+"""
+class RoverState():
+    def __init__(self, jpegBytes):
+        self.jpegBytes = jpegBytes
+        self.startTime = time.time()
+        self.rotSpeedNorm = 0
+        self.transSpeedNorm = 0
+        self.endTime = self.startTime
+
+    def setRotAndTrans(rotSpeedNorm, transSpeedNorm):
+        self.rotSpeedNorm = rotSpeedNorm
+        self.transSpeedNorm = transSpeedNorm
+
+    def getInitialImage(self):
+        return self.jpegBytes
+
+    def getStartTime(self):
+        return self.startTime
+
+    def getRotSpeedNorm(self):
+        return self.rotSpeedNorm
+
+    def getTransSpeedNorm(self):
+        return self.transSpeedNorm
+
+    def setEndTime(self, endTime):
+        self.endTime = endTime
+
+    def getDuration(self):
+        return self.endTime - self.startTime
+
+
 # Rover subclass for PS3 + OpenCV
 class PS3Rover(Rover20):
 
-    def __init__(self):
+    def __init__(self, deadZoneNorm, maxRotSpeed, rotToRadCoeff, maxTransSpeed, transToTransCoeff):
         print "Rover Module constructor called..."
-        self.botFrames = []
+        print "Using coefficients: "
+        print " --- Joystick dead zone: " + str(deadZoneNorm)
+        print " --- Max rotation speed (norm): " + str(maxRotSpeed)
+        print " --- Max translation speed (norm): " + str(maxTransSpeed)
+        print " --- Coefficients of rotation and translation: " + str(rotToRadCoeff) + ", " + str(transToTransCoeff)
+
+        self.deadZoneNorm = deadZoneNorm
+        self.maxRotSpeed = maxRotSpeed
+        self.rotToRadCoeff = rotToRadCoeff
+        self.maxTransSpeed = maxTransSpeed
+        self.transToTransCoeff = transToTransCoeff
+        self.roverStates = []
 
     def initialize(self):
         print "Initializing Rover Module..."
@@ -80,52 +125,31 @@ class PS3Rover(Rover20):
         self.lastButtonTime = 0
 
         # Try to create OpenCV named window
-        print "Creating OpenCV Window..."
-        try:
-            if cv:
-                cv.NamedWindow(self.wname, cv.CV_WINDOW_AUTOSIZE )
-            else:
-                pass
-        except:
-            pass
+        # print "Creating OpenCV Window..."
+        # try:
+        #     if cv:
+        #         cv.NamedWindow(self.wname, cv.CV_WINDOW_AUTOSIZE )
+        #     else:
+        #         pass
+        # except:
+        #     pass
 
         self.pcmfile = open('rover20.pcm', 'w')
 
-    """
-    Run a blocking loop that just processes data until quit is set to true
-    """
-    def robotLoop(self):
-        # Set up signal handler for CTRL-C
-        signal.signal(signal.SIGINT, _signal_handler)
-
-        # Loop until user hits quit button on controller
-        # while not self.quit:
-        #     pass
-        #
-        # # Shut down Rover
-        # rover.close()
-
-    def getBotFrameCount(self):
+    def getRoverStateCount(self):
         print "[Python] Count of botframes = " + str(len(self.botFrames))
-        return len(self.botFrames)
+        return len(self.roverStates)
 
-    def getFrame(self):
-        return self.botFrames.pop(0)
-
-    def getFrames(self):
-        allFrames = self.botFrames;
-        self.botFrames = [];
-        return allFrames;
+    def getRoverState(self):
+        return self.roverStates.pop(0)
 
     # Automagically called by Rover class
     def processAudio(self, pcmsamples, timestamp_10msec):
-
         for samp in pcmsamples:
             self.pcmfile.write('%d\n' % samp)
 
     # Automagically called by Rover class
     def processVideo(self, jpegbytes, timestamp_10msec):
-
         # Update controller events
         pygame.event.pump()
 
@@ -142,34 +166,37 @@ class PS3Rover(Rover20):
         else:
             self.moveCameraVertical(0)
 
-        time.sleep(0.1)
+        # time.sleep(0.1)
+        # Push the current rover state
+        if hasattr(self, "curRoverState"):
+            self.curRoverState.setEndTime(time.time())
+            self.roverStates.append(self.curRoverState)
 
-        # Set treads based on axes
-        # self.setTreads(self.axis(1), self.axis(3))
-
-        # Display video image if possible
-        try:
-            if cv:
-                # Save image to file on disk and load as OpenCV image
-                # fname = 'tmp.jpg'
-                # fd = open(fname, 'w')
-                # fd.write(jpegbytes)
-                # fd.close()
-                # image = cv.LoadImage(fname)
-                # cv.ShowImage(self.wname, image )
-                # if cv.WaitKey(1) & 0xFF == 27: # ESC
-                #    self.quit = True
-
-                # Add frame to list
-                self.botFrames.append(jpegbytes)
-                # print "[Python] Buffered frames = " + str(len(self.botFrames))
-                if len(self.botFrames) >= 50:
-                    # print "[Python] Warning - dropping frames!"
-                    self.botFrames.pop(0)
+        # Create a new state with the current image
+        self.curRoverState = RoverState(jpegbytes)
+        trans = self.axis(1)
+        rot = self.axis(2)
+        # We're moving
+        if abs(trans) > self.deadZoneNorm or abs(rot) > self.deadZoneNorm:
+            if abs(trans) > abs(rot):
+                # Translation
+                trans = self.maxTransSpeed * trans
+                rot = 0
             else:
-                pass
-        except:
-            pass
+                # Rotation
+                trans = 0
+                rot = self.maxRotSpeed * rot
+        else:
+            # Neither
+            trans = 0
+            rot = 0
+        self.setTreads(trans + rot, trans - rot) # Simple mixing because i'm lazy okay :)
+        self.curRoverState.setRotAndTrans(rot, trans)
+
+        # Now that we're moving, let's clean up buffer overflows
+        if len(self.roverStates) >= 50:
+            print "[Python] Warning - dropping frames!"
+            self.roverStates.pop(0)
 
 
     # Converts Y coordinate of specified axis to +/-1 or 0
