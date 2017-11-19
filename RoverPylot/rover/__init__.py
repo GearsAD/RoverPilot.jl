@@ -274,7 +274,7 @@ class _MediaThread():
     def iterate(self):
         # Starts True; set to False by Rover.close()
         if self.rover.is_active:
-            print "[Python MediaThread] Acquiring data."
+            # print "[Python] Acquiring data."
 
             # Grab bytes from rover, halting on failure
             try:

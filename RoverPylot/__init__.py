@@ -61,7 +61,7 @@ class RoverState():
         self.transSpeedNorm = 0
         self.endTime = self.startTime
 
-    def setRotAndTrans(rotSpeedNorm, transSpeedNorm):
+    def setRotAndTrans(self, rotSpeedNorm, transSpeedNorm):
         self.rotSpeedNorm = rotSpeedNorm
         self.transSpeedNorm = transSpeedNorm
 
@@ -77,6 +77,9 @@ class RoverState():
     def getTransSpeedNorm(self):
         return self.transSpeedNorm
 
+    def getEndTime(self):
+        return self.endTime
+
     def setEndTime(self, endTime):
         self.endTime = endTime
 
@@ -87,19 +90,19 @@ class RoverState():
 # Rover subclass for PS3 + OpenCV
 class PS3Rover(Rover20):
 
-    def __init__(self, deadZoneNorm, maxRotSpeed, rotToRadCoeff, maxTransSpeed, transToTransCoeff):
-        print "Rover Module constructor called..."
-        print "Using coefficients: "
-        print " --- Joystick dead zone: " + str(deadZoneNorm)
-        print " --- Max rotation speed (norm): " + str(maxRotSpeed)
-        print " --- Max translation speed (norm): " + str(maxTransSpeed)
-        print " --- Coefficients of rotation and translation: " + str(rotToRadCoeff) + ", " + str(transToTransCoeff)
+    def __init__(self, deadZoneNorm, maxRotSpeed, maxTransSpeed):
+        print "[Python] Rover Module constructor called..."
+        print "[Python] Using coefficients: "
+        print "[Python]  --- Joystick dead zone: " + str(deadZoneNorm)
+        print "[Python]  --- Max rotation speed (norm): " + str(maxRotSpeed)
+        print "[Python]  --- Max translation speed (norm): " + str(maxTransSpeed)
+        # print " --- Coefficients of rotation and translation: " + str(rotToRadCoeff) + ", " + str(transToTransCoeff)
 
         self.deadZoneNorm = deadZoneNorm
         self.maxRotSpeed = maxRotSpeed
-        self.rotToRadCoeff = rotToRadCoeff
+        # self.rotToRadCoeff = rotToRadCoeff
         self.maxTransSpeed = maxTransSpeed
-        self.transToTransCoeff = transToTransCoeff
+        # self.transToTransCoeff = transToTransCoeff
         self.roverStates = []
 
     def initialize(self):
@@ -137,7 +140,7 @@ class PS3Rover(Rover20):
         self.pcmfile = open('rover20.pcm', 'w')
 
     def getRoverStateCount(self):
-        print "[Python] Count of botframes = " + str(len(self.botFrames))
+        #print "[Python] Count of rover frames = " + str(len(self.roverStates))
         return len(self.roverStates)
 
     def getRoverState(self):
@@ -159,12 +162,12 @@ class PS3Rover(Rover20):
         # Toggle night vision (infrared camera)
         self.stealthIsOn = self.checkButton(self.stealthIsOn, BUTTON_STEALTH, self.turnStealthOn, self.turnStealthOff)
         # Move camera up/down
-        if self.controller.get_button(BUTTON_CAMERA_UP):
-            self.moveCameraVertical(1)
-        elif self.controller.get_button(BUTTON_CAMERA_DOWN):
-            self.moveCameraVertical(-1)
-        else:
-            self.moveCameraVertical(0)
+        # if self.controller.get_button(BUTTON_CAMERA_UP):
+        #     self.moveCameraVertical(1)
+        # elif self.controller.get_button(BUTTON_CAMERA_DOWN):
+        #     self.moveCameraVertical(-1)
+        # else:
+        #     self.moveCameraVertical(0)
 
         # time.sleep(0.1)
         # Push the current rover state
