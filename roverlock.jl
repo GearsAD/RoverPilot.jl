@@ -18,18 +18,26 @@ cd("/home/gears/roverlock");
 unshift!(PyVector(pyimport("sys")["path"]), "")
 
 shouldRun = true
-curPose = [0, 0, 0] # X, Y, Theta
 movementCoefficients = [] #ms^-1 and rads^-1
 # Coefficients
-deadZoneNorm = 0.1
-maxRotSpeed = 0.2
+deadZoneNorm = 0.05
+maxRotSpeed = 0.5
 maxTransSpeed = 0.3
 rotNormToRadCoeff = 1 #TODO - calculate
 transNormToMetersCoeff = 1 #TODO - calculate
+maxImagesPerPose = 100
+poseWorthyFunction = (deltaT, deltaDist, deltaAbsAngRad, numImages) -> deltaT > 5 || deltaDist > 0.5 || deltaAbsAngRad > pi / 8
 
-# function pushCloudGraphsFrame(image, wheelOdo)
+function pushCloudGraphsPose(curPose::RoverPose)
+    return false
+end
 
 function juliaDataLoop(rover)
+    # Make the initial pose, assuming start pose is 0,0,0 - setting the time to now.
+    curPose = RoverPose()
+    curPose.timestamp = Base.Dates.datetime2unix(now())
+    pushCloudGraphsPose(curPose)
+
     println("[Julia Data Loop] Should run = $shouldRun");
     while shouldRun
         # Update the data acquisition
@@ -38,9 +46,12 @@ function juliaDataLoop(rover)
         # println("[Julia Data Loop] Image frame count = $frameCount");
         while rover[:getRoverStateCount]() > 0
             roverState = rover[:getRoverState]()
-            roverPose = RoverPose(roverState[:getEndTime](), 0.0, 0.0, 0.0, roverState[:getInitialImage]())
-            println("Saving image!")
-            saveImage(roverPose, "test.jpg")
+            append!(curPose, roverState, maxImagesPerPose)
+            println(curPose)
+            if (isPoseWorthy(curPose))
+                pushCloudGraphsPose(deepcopy(curPose))
+                curPose = RoverPose(curPose)
+            end
         end
     end
     print("[Julia Data Loop] I'm out!");

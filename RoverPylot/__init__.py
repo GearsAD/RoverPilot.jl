@@ -54,8 +54,8 @@ except:
 Rover state class with some meta for calculating information about the edges between states
 """
 class RoverState():
-    def __init__(self, jpegBytes):
-        self.jpegBytes = jpegBytes
+    def __init__(self):
+        self.jpegBytes = ""
         self.startTime = time.time()
         self.rotSpeedNorm = 0
         self.transSpeedNorm = 0
@@ -65,8 +65,11 @@ class RoverState():
         self.rotSpeedNorm = rotSpeedNorm
         self.transSpeedNorm = transSpeedNorm
 
-    def getInitialImage(self):
+    def getImage(self):
         return self.jpegBytes
+
+    def setImage(self, jpegBytes):
+        self.jpegBytes = jpegBytes
 
     def getStartTime(self):
         return self.startTime
@@ -173,12 +176,15 @@ class PS3Rover(Rover20):
         # Push the current rover state
         if hasattr(self, "curRoverState"):
             self.curRoverState.setEndTime(time.time())
+            # Override image
+            self.curRoverState.setImage(jpegbytes)
+            # Add state
             self.roverStates.append(self.curRoverState)
 
         # Create a new state with the current image
-        self.curRoverState = RoverState(jpegbytes)
+        self.curRoverState = RoverState()
         trans = self.axis(1)
-        rot = self.axis(2)
+        rot = -self.axis(2) #Direction modifier
         # We're moving
         if abs(trans) > self.deadZoneNorm or abs(rot) > self.deadZoneNorm:
             if abs(trans) > abs(rot):
