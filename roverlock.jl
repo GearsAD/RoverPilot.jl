@@ -26,7 +26,6 @@ maxTransSpeed = 0.3
 rotNormToRadCoeff = 1 #TODO - calculate
 transNormToMetersCoeff = 1 #TODO - calculate
 maxImagesPerPose = 100
-poseWorthyFunction = (deltaT, deltaDist, deltaAbsAngRad, numImages) -> deltaT > 5 || deltaDist > 0.5 || deltaAbsAngRad > pi / 8
 
 function pushCloudGraphsPose(curPose::RoverPose)
     return false
@@ -49,6 +48,7 @@ function juliaDataLoop(rover)
             append!(curPose, roverState, maxImagesPerPose)
             println(curPose)
             if (isPoseWorthy(curPose))
+                print("Promoting Pose to CloudGraphs!")
                 pushCloudGraphsPose(deepcopy(curPose))
                 curPose = RoverPose(curPose)
             end
