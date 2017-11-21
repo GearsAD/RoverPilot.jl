@@ -6,10 +6,14 @@
 # Pkg.add("ImageView")
 # Pkg.add("PyCall")
 # Pkg.add("CloudGraphs")
+# Pkg.add("ProgressMeter")
 
 using PyCall
 using FileIO
-# using CloudGraphs
+using CloudGraphs
+using Caesar, IncrementalInference
+using KernelDensityEstimate
+# include("ExtensionMethods.jl")
 
 include("roverPose.jl")
 
@@ -18,7 +22,6 @@ cd("/home/gears/roverlock");
 unshift!(PyVector(pyimport("sys")["path"]), "")
 
 shouldRun = true
-movementCoefficients = [] #ms^-1 and rads^-1
 # Coefficients
 deadZoneNorm = 0.05
 maxRotSpeed = 0.5
@@ -56,6 +59,15 @@ function juliaDataLoop(rover)
     end
     print("[Julia Data Loop] I'm out!");
 end
+
+# Connect to CloudGraphs
+configuration = CloudGraphs.CloudGraphConfiguration("localhost", 7474, "neo4j", "neo5j", "localhost", 27017, false, "", "");
+cloudGraph = connect(configuration);
+conn = cloudGraph.neo4j.connection;
+session = "RoverLock_" * string(Base.Random.uuid1())[1:8]
+# register types of interest in CloudGraphs
+registerGeneralVariableTypes!(cloudGraph)
+Caesar.usecloudgraphsdatalayer!()
 
 # Let's do some importing
 # Ref: https://github.com/JuliaPy/PyCall.jl/issues/53
