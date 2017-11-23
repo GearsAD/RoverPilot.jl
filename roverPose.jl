@@ -9,6 +9,7 @@ struct RoverImage
 end
 
 mutable struct RoverPose
+    poseIndex::Int64
     timestamp::Float64
     x::Float64
     y::Float64
@@ -18,11 +19,11 @@ mutable struct RoverPose
     # Other stuff like AprilTags here
 
     # RoverPose(timestamp::Float64, locX::Float64, locY::Float64, theta::Float64, camJpeg::AbstractString) = new(timestamp, locX, locY, theta, camJpeg)
-    RoverPose(prevPose::RoverPose) = new(prevPose.timestamp, prevPose.x, prevPose.y, prevPose.theta, Vector{RoverImage}(), prevPose)
-    RoverPose() = new(0, 0, 0, 0, Vector{RoverImage}(0), Nullable{RoverPose}())
+    RoverPose(prevPose::RoverPose) = new(prevPose.poseIndex+1, prevPose.timestamp, prevPose.x, prevPose.y, prevPose.theta, Vector{RoverImage}(), prevPose);
+    RoverPose() = new(1, 0, 0, 0, 0, Vector{RoverImage}(0), Nullable{RoverPose}());
 end
 
-Base.show(io::IO, roverPose::RoverPose) = @printf "[%0.3f] At (%0.2f, %0.2f) with heading %0.2f and %d images" roverPose.timestamp roverPose.x roverPose.y roverPose.theta length(roverPose.camImages)
+Base.show(io::IO, roverPose::RoverPose) = @printf "[%0.3f] %s: At (%0.2f, %0.2f) with heading %0.2f, delta %s, and %d images" roverPose.timestamp string(poseIndex(roverPose)) roverPose.x roverPose.y roverPose.theta string(odoDiff(roverPose)) length(roverPose.camImages);
 
 function saveImage(roverImage :: RoverImage, imFile :: AbstractString)
     out = open(imFile,"w")
@@ -30,6 +31,29 @@ function saveImage(roverImage :: RoverImage, imFile :: AbstractString)
     close(out)
 end
 
+"""
+Returns the pose index symbol, e.g. x1.
+"""
+function poseIndex(roverPose::RoverPose)
+    return Symbol("x"*string(roverPose.poseIndex))
+end
+
+"""
+Returns the diff (dx, dy, dtheta) between roverPose and roverPose.prevPose.
+If no prevPose, assumes origin is (0,0,0).
+"""
+function odoDiff(roverPose::RoverPose)
+    if isnull(roverPose.prevPose)
+        return [roverPose.x, roverPose.y, roverPose.theta]
+    end
+    prevPose = get(roverPose.prevPose)
+
+    return [roverPose.x - prevPose.x, roverPose.y - prevPose.y, roverPose.theta - prevPose.theta]
+end
+
+"""
+Append the state to this pose, increasing the movement by the given update and adding in the sensory data.
+"""
 function append!(roverPose::RoverPose, newRoverState::PyCall.PyObject, maxImages = 100)
     duration = newRoverState[:getDuration]()
     endTime = newRoverState[:getEndTime]()
@@ -65,3 +89,5 @@ function isPoseWorthy(roverPose::RoverPose)
     end
     return deltaT > 5 || deltaDist > 0.5 || deltaAbsAngRad > pi / 8
 end
+
+println("Thanks for importing RoverPose :)")

@@ -11,7 +11,7 @@
 using PyCall
 using FileIO
 using CloudGraphs
-using Caesar, IncrementalInference
+using Caesar, IncrementalInference, RoME
 using KernelDensityEstimate
 # include("ExtensionMethods.jl")
 
@@ -30,15 +30,25 @@ rotNormToRadCoeff = 1 #TODO - calculate
 transNormToMetersCoeff = 1 #TODO - calculate
 maxImagesPerPose = 100
 
-function pushCloudGraphsPose(curPose::RoverPose)
-    return false
-end
+# function pushCloudGraphsPose(curPose::RoverPose)
+#     return false
+# end
 
-function juliaDataLoop(rover)
+function juliaDataLoop(rover, fg::IncrementalInference.FactorGraph)
+    # Tuning params - Move these out.
+    Podo=diagm([0.1;0.1;0.005]) # TODO ASK: Noise?
+    N=100
+    lcmode=:unimodal # TODO ASK: Solver?
+    lsrNoise=diagm([0.1;1.0]) # TODO ASK: ?
+
+    # Initialize the factor graph and insert first pose.
+    lastPoseVertex = initFactorGraph!(fg)
+
     # Make the initial pose, assuming start pose is 0,0,0 - setting the time to now.
     curPose = RoverPose()
     curPose.timestamp = Base.Dates.datetime2unix(now())
-    pushCloudGraphsPose(curPose)
+    # Bump it to x2 because we already have x1 (curPose = proposed pose, not saved yet)
+    curPose.poseIndex = 2
 
     println("[Julia Data Loop] Should run = $shouldRun");
     while shouldRun
@@ -52,8 +62,8 @@ function juliaDataLoop(rover)
             println(curPose)
             if (isPoseWorthy(curPose))
                 print("Promoting Pose to CloudGraphs!")
-                pushCloudGraphsPose(deepcopy(curPose))
-                curPose = RoverPose(curPose)
+                @time lastPoseVertex, factorPose = addOdoFG!(fg, poseIndex(curPose), odoDiff(curPose), Podo, N=N, labels=["POSE"])
+                curPose = RoverPose(curPose) # Increment pose
             end
         end
     end
@@ -68,6 +78,22 @@ session = "RoverLock_" * string(Base.Random.uuid1())[1:8]
 # register types of interest in CloudGraphs
 registerGeneralVariableTypes!(cloudGraph)
 Caesar.usecloudgraphsdatalayer!()
+println("Current session: $session")
+
+fg = Caesar.initfg(sessionname=session, cloudgraph=cloudGraph)
+
+
+# robot style, add first pose vertex
+# REF: https://github.com/dehann/Caesar.jl/blob/master/examples/wheeled/victoriapark_onserver.jl
+# lastPoseVertex = initFactorGraph!(fg)
+# curPose = RoverPose();
+# curPose.timestamp = Base.Dates.datetime2unix(now())
+# # Bump to x2 so we don't have two x1's (x1 = base node)
+# curPose.poseIndex = 2
+# curPose.x += 1
+# curPose.y += 1
+# @time lastPoseVertex, factorPose = addOdoFG!(fg, poseIndex(curPose), odoDiff(curPose), Podo, N=N, labels=["POSE"])
+# curPose = RoverPose(curPose)
 
 # Let's do some importing
 # Ref: https://github.com/JuliaPy/PyCall.jl/issues/53
@@ -77,4 +103,4 @@ rover = roverModule[:PS3Rover](deadZoneNorm, maxRotSpeed, maxTransSpeed)
 # Initialize
 rover[:initialize]()
 # Start the main loop
-juliaDataLoop(rover)
+juliaDataLoop(rover, fg)
