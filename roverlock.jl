@@ -7,6 +7,8 @@
 # Pkg.add("PyCall")
 # Pkg.add("CloudGraphs")
 # Pkg.add("ProgressMeter")
+# Pkg.add("JSON")
+# Pkg.add("Unmarshal")
 
 using PyCall
 using FileIO
@@ -15,20 +17,19 @@ using Caesar, IncrementalInference, RoME
 using KernelDensityEstimate
 # include("ExtensionMethods.jl")
 
-include("roverPose.jl")
+include("./entities/RoverPose.jl")
+include("./entities/SystemConfig.jl")
 
 # Allow the local directory to be used
 cd("/home/gears/roverlock");
 unshift!(PyVector(pyimport("sys")["path"]), "")
 
+# Read the configuration
+f = open(dirname(Base.source_path()) *"/config/systemconfig.json","r")
+sysConfig = decodeSysConfig(readstring(f))
+close(f)
+
 shouldRun = true
-# Coefficients
-deadZoneNorm = 0.05
-maxRotSpeed = 0.5
-maxTransSpeed = 0.3
-rotNormToRadCoeff = 1 #TODO - calculate
-transNormToMetersCoeff = 1 #TODO - calculate
-maxImagesPerPose = 100
 
 # function pushCloudGraphsPose(curPose::RoverPose)
 #     return false
@@ -74,7 +75,7 @@ end
 configuration = CloudGraphs.CloudGraphConfiguration("localhost", 7474, "neo4j", "neo5j", "localhost", 27017, false, "", "");
 cloudGraph = connect(configuration);
 conn = cloudGraph.neo4j.connection;
-session = "RoverLock_" * string(Base.Random.uuid1())[1:8]
+session = sysConfig.sessionPrefix * "_" * string(Base.Random.uuid1())[1:8] #Name+SHA
 # register types of interest in CloudGraphs
 registerGeneralVariableTypes!(cloudGraph)
 Caesar.usecloudgraphsdatalayer!()
@@ -82,23 +83,10 @@ println("Current session: $session")
 
 fg = Caesar.initfg(sessionname=session, cloudgraph=cloudGraph)
 
-
-# robot style, add first pose vertex
-# REF: https://github.com/dehann/Caesar.jl/blob/master/examples/wheeled/victoriapark_onserver.jl
-# lastPoseVertex = initFactorGraph!(fg)
-# curPose = RoverPose();
-# curPose.timestamp = Base.Dates.datetime2unix(now())
-# # Bump to x2 so we don't have two x1's (x1 = base node)
-# curPose.poseIndex = 2
-# curPose.x += 1
-# curPose.y += 1
-# @time lastPoseVertex, factorPose = addOdoFG!(fg, poseIndex(curPose), odoDiff(curPose), Podo, N=N, labels=["POSE"])
-# curPose = RoverPose(curPose)
-
 # Let's do some importing
 # Ref: https://github.com/JuliaPy/PyCall.jl/issues/53
 roverModule = pyimport("RoverPylot")
-rover = roverModule[:PS3Rover](deadZoneNorm, maxRotSpeed, maxTransSpeed)
+rover = roverModule[:PS3Rover](sysConfig.botConfig.deadZoneNorm, sysConfig.botConfig.maxRotSpeed, sysConfig.botConfig.maxTransSpeed)
 
 # Initialize
 rover[:initialize]()

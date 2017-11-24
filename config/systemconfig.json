@@ -1,0 +1,18 @@
+{
+  "botId":"Bot1",
+  "sessionPrefix":"Bot1",
+  "kafkaConfig":
+  {
+    "ip":"localhost",
+    "port":9092
+  },
+  "botConfig":
+  {
+    "deadZoneNorm": 0.05,
+    "maxRotSpeed": 0.5,
+    "maxTransSpeed": 0.3,
+    "rotNormToRadCoeff": 1,
+    "transNormToMetersCoeff": 1,
+    "maxImagesPerPose": 100
+  }
+}

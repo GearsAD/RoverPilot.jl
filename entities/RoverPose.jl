@@ -1,6 +1,6 @@
-using PyCall
+using Base
 
-export saveImage, append
+export saveImage, append!, poseIndex, odoDiff
 export RoverPose
 
 struct RoverImage
