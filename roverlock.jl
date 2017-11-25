@@ -33,15 +33,15 @@ function sendCloudGraphsPose(pose::RoverPose, sysConfig::SystemConfig, fg::Incre
     # Get from sysConfig
     Podo=diagm([0.1;0.1;0.005]) # TODO ASK: Noise?
     N=100
-    lastPoseVertex, factorPose = addOdoFG!(fg, poseIndex(pose), odoDiff(pose), Podo, N=N, labels=["POSE", config.botId])
+    lastPoseVertex, factorPose = addOdoFG!(fg, poseIndex(pose), odoDiff(pose), Podo, N=N, labels=["POSE", sysConfig.botId])
     # Now send the images.
     # TODO WIP HERE
 end
 
 shouldRun = true
-function juliaDataLoop(config::SystemConfig, rover, fg::IncrementalInference.FactorGraph, kafkaService::KafkaService)
+function juliaDataLoop(sysConfig::SystemConfig, rover, fg::IncrementalInference.FactorGraph, kafkaService::KafkaService)
     # Initialize the factor graph and insert first pose.
-    lastPoseVertex = initFactorGraph!(fg, labels=[config.botId])
+    lastPoseVertex = initFactorGraph!(fg, labels=[sysConfig.botId])
 
     # Make the initial pose, assuming start pose is 0,0,0 - setting the time to now.
     curPose = RoverPose()
@@ -57,7 +57,7 @@ function juliaDataLoop(config::SystemConfig, rover, fg::IncrementalInference.Fac
         # println("[Julia Data Loop] Image frame count = $frameCount");
         while rover[:getRoverStateCount]() > 0
             roverState = rover[:getRoverState]()
-            append!(curPose, roverState, maxImagesPerPose)
+            append!(curPose, roverState, sysConfig.botConfig.maxImagesPerPose)
             println(curPose)
             if (isPoseWorthy(curPose))
                 print("Promoting Pose to CloudGraphs!")
@@ -89,7 +89,7 @@ end
 kafkaService = KafkaService(sysConfig)
 initialize(kafkaService, sessionMessageCallback, robotMessageCallback)
 
-fg = Caesar.initfg(sessionname=session, cloudgraph=cloudGraph)
+fg = Caesar.initfg(sessionname=sysConfig.sessionId, cloudgraph=cloudGraph)
 
 # Let's do some importing
 # Ref: https://github.com/JuliaPy/PyCall.jl/issues/53
@@ -99,4 +99,4 @@ rover = roverModule[:PS3Rover](sysConfig.botConfig.deadZoneNorm, sysConfig.botCo
 # Initialize
 rover[:initialize]()
 # Start the main loop
-juliaDataLoop(config, rover, fg, kafkaService)
+juliaDataLoop(sysConfig, rover, fg, kafkaService)
