@@ -25,15 +25,9 @@ cd("/home/gears/roverlock");
 unshift!(PyVector(pyimport("sys")["path"]), "")
 
 # Read the configuration
-f = open(dirname(Base.source_path()) *"/config/systemconfig.json","r")
-sysConfig = decodeSysConfig(readstring(f))
-close(f)
+sysConfig = readSystemConfigFile(dirname(Base.source_path()) *"/config/systemconfig.json")
 
 shouldRun = true
-
-# function pushCloudGraphsPose(curPose::RoverPose)
-#     return false
-# end
 
 function juliaDataLoop(config::SystemConfig, rover, fg::IncrementalInference.FactorGraph)
     # Tuning params - Move these out.

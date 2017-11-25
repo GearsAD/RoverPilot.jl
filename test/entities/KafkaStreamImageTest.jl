@@ -1,7 +1,7 @@
 using Base
 using Base.Test
 
-include("../entities/KafkaStreamImage.jl")
+include("../../entities/KafkaStreamImage.jl")
 
 # Load a test binary file
 fid = open(dirname(Base.source_path()) *"/test.jpg","r")
@@ -16,11 +16,3 @@ ksiCompare = decode(byteData)
 @test ksiTest.sessionId == ksiCompare.sessionId
 @test ksiTest.camJpeg == ksiCompare.camJpeg
 @test ksiTest.additionalInfo == ksiCompare.additionalInfo
-
-# Okay now for pushing these structures to Kafka
-using PyCall
-
-# My e.g. https://github.com/dpkp/kafka-python/blob/master/example.py
-kafkaModule = pyimport("kafka")
-producer = kafkaModule[:KafkaProducer]()#, KafkaProducer
-producer[:send]("rawImageStream", encode(ksiTest))

@@ -1,3 +1,5 @@
+using FileIO
+
 import JSON, Unmarshal
 import CloudGraphs
 
@@ -40,4 +42,12 @@ Returns encoded string for SystemConfig
 """
 function encode(systemConfig::SystemConfig)::String
     return JSON.json(systemConfig)
+end
+
+function readSystemConfigFile(fileName::String)
+    # Read the configuration
+    f = open(fileName, "r")
+    sysConfig = decodeSysConfig(readstring(f))
+    close(f)
+    return sysConfig
 end
