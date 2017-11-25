@@ -54,13 +54,8 @@ function initialize(kafkaService::KafkaService, sessionMsgRcvCallback::Function,
     # Define the processors
     py"""
     def processMessages(consumer, juliaCallback):
-        #consumer = KafkaConsumer(bootstrap_servers='localhost:9092',
-        #                             auto_offset_reset='earliest',
-        #                             consumer_timeout_ms=1000)
-        #consumer.subscribe(['rawImageStream'])
         for message in consumer:
             juliaCallback(message)
-        #consumer.close()
     """
     kafkaService.processMessagesFnc = py"processMessages"
 

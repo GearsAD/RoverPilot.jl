@@ -19,6 +19,7 @@ using KernelDensityEstimate
 
 include("./entities/RoverPose.jl")
 include("./entities/SystemConfig.jl")
+include("./service/KafkaService.jl")
 
 # Allow the local directory to be used
 cd("/home/gears/roverlock");
@@ -26,16 +27,19 @@ unshift!(PyVector(pyimport("sys")["path"]), "")
 
 # Read the configuration
 sysConfig = readSystemConfigFile(dirname(Base.source_path()) *"/config/systemconfig.json")
+sysConfig.sessionId = sysConfig.sessionPrefix * "_" * string(Base.Random.uuid1())[1:8] #Name+SHA
 
-shouldRun = true
-
-function juliaDataLoop(config::SystemConfig, rover, fg::IncrementalInference.FactorGraph)
-    # Tuning params - Move these out.
+function sendCloudGraphsPose(pose::RoverPose, sysConfig::SystemConfig, fg::IncrementalInference.FactorGraph, kafkaService::KafkaService)
+    # Get from sysConfig
     Podo=diagm([0.1;0.1;0.005]) # TODO ASK: Noise?
     N=100
-    lcmode=:unimodal # TODO ASK: Solver?
-    lsrNoise=diagm([0.1;1.0]) # TODO ASK: ?
+    lastPoseVertex, factorPose = addOdoFG!(fg, poseIndex(pose), odoDiff(pose), Podo, N=N, labels=["POSE", config.botId])
+    # Now send the images.
+    # TODO WIP HERE
+end
 
+shouldRun = true
+function juliaDataLoop(config::SystemConfig, rover, fg::IncrementalInference.FactorGraph, kafkaService::KafkaService)
     # Initialize the factor graph and insert first pose.
     lastPoseVertex = initFactorGraph!(fg, labels=[config.botId])
 
@@ -57,7 +61,7 @@ function juliaDataLoop(config::SystemConfig, rover, fg::IncrementalInference.Fac
             println(curPose)
             if (isPoseWorthy(curPose))
                 print("Promoting Pose to CloudGraphs!")
-                @time lastPoseVertex, factorPose = addOdoFG!(fg, poseIndex(curPose), odoDiff(curPose), Podo, N=N, labels=["POSE", config.botId])
+                @time sendCloudGraphsPose(curPose, sysConfig, fg, kafkaService)
                 curPose = RoverPose(curPose) # Increment pose
             end
         end
@@ -70,11 +74,20 @@ end
 configuration = CloudGraphs.CloudGraphConfiguration("localhost", 7474, "neo4j", "neo5j", "localhost", 27017, false, "", "");
 cloudGraph = connect(configuration);
 conn = cloudGraph.neo4j.connection;
-sysConfig.sessionId = sysConfig.sessionPrefix * "_" * string(Base.Random.uuid1())[1:8] #Name+SHA
 # register types of interest in CloudGraphs
 registerGeneralVariableTypes!(cloudGraph)
 Caesar.usecloudgraphsdatalayer!()
 println("Current session: $(sysConfig.sessionId)")
+
+# Kafka Initialization - callbacks not used yet.
+function sessionMessageCallback(message)
+    @show typeof(message)
+end
+function robotMessageCallback(message)
+    @show message
+end
+kafkaService = KafkaService(sysConfig)
+initialize(kafkaService, sessionMessageCallback, robotMessageCallback)
 
 fg = Caesar.initfg(sessionname=session, cloudgraph=cloudGraph)
 
@@ -86,4 +99,4 @@ rover = roverModule[:PS3Rover](sysConfig.botConfig.deadZoneNorm, sysConfig.botCo
 # Initialize
 rover[:initialize]()
 # Start the main loop
-juliaDataLoop(config, rover, fg)
+juliaDataLoop(config, rover, fg, kafkaService)
