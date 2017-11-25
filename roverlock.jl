@@ -35,7 +35,7 @@ shouldRun = true
 #     return false
 # end
 
-function juliaDataLoop(rover, fg::IncrementalInference.FactorGraph)
+function juliaDataLoop(config::SystemConfig, rover, fg::IncrementalInference.FactorGraph)
     # Tuning params - Move these out.
     Podo=diagm([0.1;0.1;0.005]) # TODO ASK: Noise?
     N=100
@@ -43,7 +43,7 @@ function juliaDataLoop(rover, fg::IncrementalInference.FactorGraph)
     lsrNoise=diagm([0.1;1.0]) # TODO ASK: ?
 
     # Initialize the factor graph and insert first pose.
-    lastPoseVertex = initFactorGraph!(fg)
+    lastPoseVertex = initFactorGraph!(fg, labels=[config.botId])
 
     # Make the initial pose, assuming start pose is 0,0,0 - setting the time to now.
     curPose = RoverPose()
@@ -63,7 +63,7 @@ function juliaDataLoop(rover, fg::IncrementalInference.FactorGraph)
             println(curPose)
             if (isPoseWorthy(curPose))
                 print("Promoting Pose to CloudGraphs!")
-                @time lastPoseVertex, factorPose = addOdoFG!(fg, poseIndex(curPose), odoDiff(curPose), Podo, N=N, labels=["POSE"])
+                @time lastPoseVertex, factorPose = addOdoFG!(fg, poseIndex(curPose), odoDiff(curPose), Podo, N=N, labels=["POSE", config.botId])
                 curPose = RoverPose(curPose) # Increment pose
             end
         end
@@ -72,14 +72,15 @@ function juliaDataLoop(rover, fg::IncrementalInference.FactorGraph)
 end
 
 # Connect to CloudGraphs
+# TODO - convert this type to a struct already!
 configuration = CloudGraphs.CloudGraphConfiguration("localhost", 7474, "neo4j", "neo5j", "localhost", 27017, false, "", "");
 cloudGraph = connect(configuration);
 conn = cloudGraph.neo4j.connection;
-session = sysConfig.sessionPrefix * "_" * string(Base.Random.uuid1())[1:8] #Name+SHA
+sysConfig.sessionId = sysConfig.sessionPrefix * "_" * string(Base.Random.uuid1())[1:8] #Name+SHA
 # register types of interest in CloudGraphs
 registerGeneralVariableTypes!(cloudGraph)
 Caesar.usecloudgraphsdatalayer!()
-println("Current session: $session")
+println("Current session: $(sysConfig.sessionId)")
 
 fg = Caesar.initfg(sessionname=session, cloudgraph=cloudGraph)
 
@@ -91,4 +92,4 @@ rover = roverModule[:PS3Rover](sysConfig.botConfig.deadZoneNorm, sysConfig.botCo
 # Initialize
 rover[:initialize]()
 # Start the main loop
-juliaDataLoop(rover, fg)
+juliaDataLoop(config, rover, fg)

@@ -25,6 +25,9 @@ end
 
 Base.show(io::IO, roverPose::RoverPose) = @printf "[%0.3f] %s: At (%0.2f, %0.2f) with heading %0.2f, delta %s, and %d images" roverPose.timestamp string(poseIndex(roverPose)) roverPose.x roverPose.y roverPose.theta string(odoDiff(roverPose)) length(roverPose.camImages);
 
+"""
+Save an image to a file.
+"""
 function saveImage(roverImage :: RoverImage, imFile :: AbstractString)
     out = open(imFile,"w")
     write(out,roverImage.camJpeg)

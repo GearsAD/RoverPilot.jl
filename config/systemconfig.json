@@ -1,10 +1,12 @@
 {
   "botId":"Bot1",
   "sessionPrefix":"Bot1",
+  "sessionId":"",
   "kafkaConfig":
   {
     "ip":"localhost",
-    "port":9092
+    "port":9092,
+    "rawImageChannelName":"rawImageStream"
   },
   "botConfig":
   {

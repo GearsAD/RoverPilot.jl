@@ -7,6 +7,7 @@ export decodeSysConfig, encode
 struct KafkaConfig
     ip::String
     port::Int
+    rawImageChannelName::String
 end
 
 struct BotConfig
@@ -18,9 +19,10 @@ struct BotConfig
     maxImagesPerPose::Float64
 end
 
-struct SystemConfig
+mutable struct SystemConfig
     botId::String
     sessionPrefix::String
+    sessionId::String
 
     kafkaConfig::KafkaConfig
     botConfig::BotConfig
