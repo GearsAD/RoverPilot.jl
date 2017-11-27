@@ -1,15 +1,15 @@
 using FileIO
 
 import JSON, Unmarshal
-import CloudGraphs
 
-export SystmConfig, KafkaConfig
-export decodeSysConfig, encode
+export SystemConfig, KafkaConfig, BotConfig
+export decodeSysConfig, encode, readSystemConfigFile
 
 struct KafkaConfig
     ip::String
     port::Int
     rawImageChannelName::String
+    statusNotificationChannelName::String
 end
 
 struct BotConfig

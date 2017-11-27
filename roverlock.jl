@@ -19,6 +19,8 @@ using KernelDensityEstimate
 
 include("./entities/RoverPose.jl")
 include("./entities/SystemConfig.jl")
+include("./entities/KafkaStreamImage.jl")
+include("./entities/KafkaStatusNotification.jl")
 include("./service/KafkaService.jl")
 
 # Allow the local directory to be used
@@ -27,7 +29,7 @@ unshift!(PyVector(pyimport("sys")["path"]), "")
 
 # Read the configuration
 sysConfig = readSystemConfigFile(dirname(Base.source_path()) *"/config/systemconfig.json")
-sysConfig.sessionId = sysConfig.sessionPrefix * "_" * string(Base.Random.uuid1())[1:8] #Name+SHA
+sysConfig.sessionId = sysConfig.botId * "." * (!isempty(strip(sysConfig.sessionPrefix)) ? sysConfig.sessionPrefix * "." : "") * string(Base.Random.uuid1())[1:8] #Name+SHA
 
 function sendCloudGraphsPose(pose::RoverPose, sysConfig::SystemConfig, fg::IncrementalInference.FactorGraph, kafkaService::KafkaService)
     # Get from sysConfig
@@ -35,7 +37,10 @@ function sendCloudGraphsPose(pose::RoverPose, sysConfig::SystemConfig, fg::Incre
     N=100
     lastPoseVertex, factorPose = addOdoFG!(fg, poseIndex(pose), odoDiff(pose), Podo, N=N, labels=["POSE", sysConfig.botId])
     # Now send the images.
-    # TODO WIP HERE
+    for robotImg = pose.camImages
+        ksi = KafkaStreamImage(String(poseIndex(pose)), sysConfig.sessionId, robotImg.timestamp, robotImg.camJpeg, "jpg", Dict{String, String}())
+        sendRawImage(kafkaService, ksi)
+    end
 end
 
 shouldRun = true
@@ -88,7 +93,10 @@ function robotMessageCallback(message)
 end
 kafkaService = KafkaService(sysConfig)
 initialize(kafkaService, sessionMessageCallback, robotMessageCallback)
+# Send a status message to say we're up!
+sendStatusNotification(kafkaService, KafkaStatusNotification(sysConfig.botId, sysConfig.sessionId, "ACTIVE"))
 
+# Now start up our factor graph.
 fg = Caesar.initfg(sessionname=sysConfig.sessionId, cloudgraph=cloudGraph)
 
 # Let's do some importing

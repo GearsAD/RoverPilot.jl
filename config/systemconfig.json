@@ -6,7 +6,8 @@
   {
     "ip":"localhost",
     "port":9092,
-    "rawImageChannelName":"rawImageStream"
+    "rawImageChannelName":"rawImageStream",
+    "statusNotificationChannelName": "envStatusNotifications"
   },
   "botConfig":
   {
@@ -15,6 +16,6 @@
     "maxTransSpeed": 0.3,
     "rotNormToRadCoeff": 1,
     "transNormToMetersCoeff": 1,
-    "maxImagesPerPose": 100
+    "maxImagesPerPose": 1
   }
 }

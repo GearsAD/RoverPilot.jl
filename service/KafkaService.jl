@@ -2,6 +2,7 @@ using Base
 using PyCall
 
 include("../entities/KafkaStreamImage.jl")
+include("../entities/KafkaStatusNotification.jl")
 include("../entities/SystemConfig.jl")
 
 """
@@ -121,4 +122,16 @@ function sendRawImage(kafkaService::KafkaService, kafkaStreamImage::KafkaStreamI
     end
 
     sendMessage(kafkaService, kafkaService.systemConfig.kafkaConfig.rawImageChannelName, encode(kafkaStreamImage))
+end
+
+"""
+Convenience method. Send a system-wode notification to the notification channel.
+"""
+function sendStatusNotification(kafkaService::KafkaService, kafkaStatusNotification::KafkaStatusNotification)
+    if(!kafkaService._isConnected)
+        println("KafkaService error: Not initialized, please call connect!")
+        return
+    end
+
+    sendMessage(kafkaService, kafkaService.systemConfig.kafkaConfig.statusNotificationChannelName, encode(kafkaStatusNotification))
 end

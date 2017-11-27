@@ -9,10 +9,11 @@ imgBytes = read(fid)
 close(fid)
 
 # Basic testing to validate that the structure can be encoded
-ksiTest = KafkaStreamImage("x1", "TESTSESS", 0, imgBytes, Dict{String, String}("Test" => "TestAgain"))
+ksiTest = KafkaStreamImage("x1", "TESTSESS", 0, imgBytes, "jpg", Dict{String, String}("Test" => "TestAgain"))
 byteData = encode(ksiTest)
 ksiCompare = decode(byteData)
 @test ksiTest.poseIndex == ksiCompare.poseIndex
 @test ksiTest.sessionId == ksiCompare.sessionId
-@test ksiTest.camJpeg == ksiCompare.camJpeg
+@test ksiTest.imageBytes == ksiCompare.imageBytes
+@test ksiTest.imageFormat == ksiCompare.imageFormat
 @test ksiTest.additionalInfo == ksiCompare.additionalInfo
