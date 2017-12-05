@@ -10,18 +10,16 @@
 # Pkg.add("JSON")
 # Pkg.add("Unmarshal")
 
+using Base
 using PyCall
 using FileIO
 using CloudGraphs
 using Caesar, IncrementalInference, RoME
 using KernelDensityEstimate
+using SlamInDB_APICommon
 # include("ExtensionMethods.jl")
 
 include("./entities/RoverPose.jl")
-include("./entities/SystemConfig.jl")
-include("./entities/KafkaStreamImage.jl")
-include("./entities/KafkaStatusNotification.jl")
-include("./service/KafkaService.jl")
 
 # Allow the local directory to be used
 cd("/home/gears/roverlock");
@@ -35,10 +33,10 @@ function sendCloudGraphsPose(pose::RoverPose, sysConfig::SystemConfig, fg::Incre
     # Get from sysConfig
     Podo=diagm([0.1;0.1;0.005]) # TODO ASK: Noise?
     N=100
-    lastPoseVertex, factorPose = addOdoFG!(fg, poseIndex(pose), odoDiff(pose), Podo, N=N, labels=["POSE", sysConfig.botId])
+    @time lastPoseVertex, factorPose = addOdoFG!(fg, poseIndex(pose), odoDiff(pose), Podo, N=N, labels=["POSE", pose.poseId, sysConfig.botId])
     # Now send the images.
     for robotImg = pose.camImages
-        ksi = KafkaStreamImage(String(poseIndex(pose)), sysConfig.sessionId, robotImg.timestamp, robotImg.camJpeg, "jpg", Dict{String, String}())
+        ksi = ImageData(string(Base.Random.uuid4()), pose.poseId, String(poseIndex(pose)), sysConfig.sessionId, robotImg.timestamp, robotImg.camJpeg, "jpg", Dict{String, String}())
         sendRawImage(kafkaService, ksi)
     end
 end
@@ -92,9 +90,9 @@ function robotMessageCallback(message)
     @show message
 end
 kafkaService = KafkaService(sysConfig)
-initialize(kafkaService, sessionMessageCallback, robotMessageCallback)
+initialize(kafkaService, Vector{KafkaConsumer}())
 # Send a status message to say we're up!
-sendStatusNotification(kafkaService, KafkaStatusNotification(sysConfig.botId, sysConfig.sessionId, "ACTIVE"))
+sendStatusNotification(kafkaService, StatusNotification(sysConfig.botId, sysConfig.sessionId, "ACTIVE"))
 
 # Now start up our factor graph.
 fg = Caesar.initfg(sessionname=sysConfig.sessionId, cloudgraph=cloudGraph)

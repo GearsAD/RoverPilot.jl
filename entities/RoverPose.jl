@@ -9,6 +9,7 @@ struct RoverImage
 end
 
 mutable struct RoverPose
+    poseId::String
     poseIndex::Int64
     timestamp::Float64
     x::Float64
@@ -19,11 +20,11 @@ mutable struct RoverPose
     # Other stuff like AprilTags here
 
     # RoverPose(timestamp::Float64, locX::Float64, locY::Float64, theta::Float64, camJpeg::AbstractString) = new(timestamp, locX, locY, theta, camJpeg)
-    RoverPose(prevPose::RoverPose) = new(prevPose.poseIndex+1, prevPose.timestamp, prevPose.x, prevPose.y, prevPose.theta, Vector{RoverImage}(), prevPose);
-    RoverPose() = new(1, 0, 0, 0, 0, Vector{RoverImage}(0), Nullable{RoverPose}());
+    RoverPose(prevPose::RoverPose) = new(string(Base.Random.uuid4()), prevPose.poseIndex+1, prevPose.timestamp, prevPose.x, prevPose.y, prevPose.theta, Vector{RoverImage}(), prevPose);
+    RoverPose() = new(string(Base.Random.uuid4()), 1, 0, 0, 0, 0, Vector{RoverImage}(0), Nullable{RoverPose}());
 end
 
-Base.show(io::IO, roverPose::RoverPose) = @printf "[%0.3f] %s: At (%0.2f, %0.2f) with heading %0.2f, delta %s, and %d images" roverPose.timestamp string(poseIndex(roverPose)) roverPose.x roverPose.y roverPose.theta string(odoDiff(roverPose)) length(roverPose.camImages);
+Base.show(io::IO, roverPose::RoverPose) = @printf "[%0.3f] (%s) %s: At (%0.2f, %0.2f) with heading %0.2f, delta %s, and %d images" roverPose.timestamp roverPose.poseId string(poseIndex(roverPose)) roverPose.x roverPose.y roverPose.theta string(odoDiff(roverPose)) length(roverPose.camImages);
 
 """
 Save an image to a file.
@@ -90,7 +91,7 @@ function isPoseWorthy(roverPose::RoverPose)
     while deltaAbsAngRad > 2.0*pi
         deltaAbsAngRad -= 2.0*pi
     end
-    return deltaT > 5 || deltaDist > 0.5 || deltaAbsAngRad > pi / 8
+    return deltaT > 1 || deltaDist > 0.5 || deltaAbsAngRad > pi / 8
 end
 
 println("Thanks for importing RoverPose :)")
