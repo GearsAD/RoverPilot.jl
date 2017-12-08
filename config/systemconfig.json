@@ -18,5 +18,17 @@
     "rotNormToRadCoeff": 1,
     "transNormToMetersCoeff": 1,
     "maxImagesPerPose": 1
+  },
+  "cloudGraphsConfig":
+  {
+    "neo4jHost": "localhost",
+     "neo4jPort": 7474,
+     "neo4jUsername": "neo4j",
+     "neo4jPassword": "neo5j",
+     "mongoHost": "localhost",
+     "mongoPort": 27017,
+     "mongoIsUsingCredentials": false,
+     "mongoPassword": "",
+     "mongoUsername": ""
   }
 }

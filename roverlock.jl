@@ -36,7 +36,7 @@ function sendCloudGraphsPose(pose::RoverPose, sysConfig::SystemConfig, fg::Incre
     @time lastPoseVertex, factorPose = addOdoFG!(fg, poseIndex(pose), odoDiff(pose), Podo, N=N, labels=["POSE", pose.poseId, sysConfig.botId])
     # Now send the images.
     for robotImg = pose.camImages
-        ksi = ImageData(string(Base.Random.uuid4()), pose.poseId, String(poseIndex(pose)), sysConfig.sessionId, robotImg.timestamp, robotImg.camJpeg, "jpg", Dict{String, String}())
+        ksi = ImageData(string(Base.Random.uuid4()), pose.poseId, sysConfig.sessionId, String(poseIndex(pose)), robotImg.timestamp, robotImg.camJpeg, "jpg", Dict{String, String}())
         sendRawImage(kafkaService, ksi)
     end
 end
@@ -73,9 +73,7 @@ function juliaDataLoop(sysConfig::SystemConfig, rover, fg::IncrementalInference.
 end
 
 # Connect to CloudGraphs
-# TODO - convert this type to a struct already!
-configuration = CloudGraphs.CloudGraphConfiguration("localhost", 7474, "neo4j", "neo5j", "localhost", 27017, false, "", "");
-cloudGraph = connect(configuration);
+cloudGraph = connect(sysConfig.cloudGraphsConfig);
 conn = cloudGraph.neo4j.connection;
 # register types of interest in CloudGraphs
 registerGeneralVariableTypes!(cloudGraph)
