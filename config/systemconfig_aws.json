@@ -1,17 +1,16 @@
 {
-  "botId":"APRILTAGS_PROCESSOR",
+  "botId":"RoverSam1",
   "sessionPrefix":"",
   "sessionId":"",
   "kafkaConfig":
   {
-    "ip":"18.217.118.248",
+    "ip":"ec2-18-217-118-248.us-east-2.compute.amazonaws.com",
     "port":9092,
     "rawImageChannelName":"rawImageStream",
     "statusNotificationChannelName": "envStatusNotifications",
     "aprilTagsProcessedChannelName": "aprilTagsProcessed",
     "consumerBlockingMs": 1000,
     "maxMessagesPerRead": 10
-
   },
   "botConfig":
   {
@@ -24,11 +23,11 @@
   },
   "cloudGraphsConfig":
   {
-     "neo4jHost": "ec2-18-218-0-248.us-east-2.compute.amazonaws.com",
+     "neo4jHost": "ec2-18-216-168-208.us-east-2.compute.amazonaws.com",
      "neo4jPort": 7474,
      "neo4jUsername": "neo4j",
      "neo4jPassword": "SlamMe12",
-     "mongoHost": "ec2-18-220-108-112.us-east-2.compute.amazonaws.com",
+     "mongoHost": "ec2-18-217-231-168.us-east-2.compute.amazonaws.com",
      "mongoPort": 27017,
      "mongoIsUsingCredentials": false,
      "mongoPassword": "",
