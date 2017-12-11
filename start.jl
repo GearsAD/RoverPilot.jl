@@ -17,6 +17,7 @@ using CloudGraphs
 using Caesar, IncrementalInference, RoME
 using KernelDensityEstimate
 using SlamInDB_APICommon
+using ArgParse
 # include("ExtensionMethods.jl")
 
 include("./entities/RoverPose.jl")
@@ -25,9 +26,8 @@ include("./entities/RoverPose.jl")
 cd("/home/gears/roverlock");
 unshift!(PyVector(pyimport("sys")["path"]), "")
 
-# Read the configuration
-sysConfig = readSystemConfigFile(dirname(Base.source_path()) *"/config/systemconfig.json")
-sysConfig.sessionId = sysConfig.botId * "." * (!isempty(strip(sysConfig.sessionPrefix)) ? sysConfig.sessionPrefix * "." : "") * string(Base.Random.uuid1())[1:8] #Name+SHA
+# Globals
+shouldRun = true
 
 function sendCloudGraphsPose(pose::RoverPose, sysConfig::SystemConfig, fg::IncrementalInference.FactorGraph, kafkaService::KafkaService)
     # Get from sysConfig
@@ -41,7 +41,6 @@ function sendCloudGraphsPose(pose::RoverPose, sysConfig::SystemConfig, fg::Incre
     end
 end
 
-shouldRun = true
 function juliaDataLoop(sysConfig::SystemConfig, rover, fg::IncrementalInference.FactorGraph, kafkaService::KafkaService)
     # Initialize the factor graph and insert first pose.
     lastPoseVertex = initFactorGraph!(fg, labels=[sysConfig.botId])
@@ -72,35 +71,66 @@ function juliaDataLoop(sysConfig::SystemConfig, rover, fg::IncrementalInference.
     print("[Julia Data Loop] I'm out!");
 end
 
-# Connect to CloudGraphs
-cloudGraph = connect(sysConfig.cloudGraphsConfig);
-conn = cloudGraph.neo4j.connection;
-# register types of interest in CloudGraphs
-registerGeneralVariableTypes!(cloudGraph)
-Caesar.usecloudgraphsdatalayer!()
-println("Current session: $(sysConfig.sessionId)")
+"""
+Get the command-line parameters.
+"""
+function parse_commandline()
+    s = ArgParseSettings()
 
-# Kafka Initialization - callbacks not used yet.
-function sessionMessageCallback(message)
-    @show typeof(message)
+    @add_arg_table s begin
+        "sysConfig"
+            help = "Provide a system configuration file"
+            default = "./config/systemconfig_local.json"
+    end
+
+    return parse_args(s)
 end
-function robotMessageCallback(message)
-    @show message
+
+function main()
+    # Parse command lines.
+    parsedArgs = parse_commandline()
+
+    println(" --- Loading system config from '$(parsedArgs["sysConfig"])'...")
+    sysConfig = readSystemConfigFile(parsedArgs["sysConfig"])
+    sysConfig.sessionId = sysConfig.botId * "_" * (!isempty(strip(sysConfig.sessionPrefix)) ? sysConfig.sessionPrefix * "_" : "") * string(Base.Random.uuid1())[1:8] #Name+SHA
+
+    # Connect to CloudGraphs
+    println(" --- Connecting to CloudGraphs instance $(sysConfig.cloudGraphsConfig.neo4jHost)...")
+    cloudGraph = connect(sysConfig.cloudGraphsConfig);
+    conn = cloudGraph.neo4j.connection;
+    # register types of interest in CloudGraphs
+    registerGeneralVariableTypes!(cloudGraph)
+    Caesar.usecloudgraphsdatalayer!()
+    println("Current session: $(sysConfig.sessionId)")
+
+    # Kafka Initialization - callbacks not used yet.
+    # Kafka Initialization
+    println(" --- Connecting to Kafka instance $(sysConfig.kafkaConfig.ip)...")
+    function sessionMessageCallback(message)
+        @show typeof(message)
+    end
+    function robotMessageCallback(message)
+        @show message
+    end
+    kafkaService = KafkaService(sysConfig)
+    initialize(kafkaService, Vector{KafkaConsumer}())
+    # Send a status message to say we're up!
+    sendStatusNotification(kafkaService, StatusNotification(sysConfig.botId, sysConfig.sessionId, "ACTIVE"))
+
+    # Now start up our factor graph.
+    fg = Caesar.initfg(sessionname=sysConfig.sessionId, cloudgraph=cloudGraph)
+
+    # Let's do some importing
+    # Ref: https://github.com/JuliaPy/PyCall.jl/issues/53
+    println(" --- Connecting to Rover!")
+    roverModule = pyimport("RoverPylot")
+    rover = roverModule[:PS3Rover](sysConfig.botConfig.deadZoneNorm, sysConfig.botConfig.maxRotSpeed, sysConfig.botConfig.maxTransSpeed)
+    # Initialize
+    rover[:initialize]()
+
+    # Start the main loop
+    println(" --- Success, starting main processing loop!")
+    juliaDataLoop(sysConfig, rover, fg, kafkaService)
 end
-kafkaService = KafkaService(sysConfig)
-initialize(kafkaService, Vector{KafkaConsumer}())
-# Send a status message to say we're up!
-sendStatusNotification(kafkaService, StatusNotification(sysConfig.botId, sysConfig.sessionId, "ACTIVE"))
 
-# Now start up our factor graph.
-fg = Caesar.initfg(sessionname=sysConfig.sessionId, cloudgraph=cloudGraph)
-
-# Let's do some importing
-# Ref: https://github.com/JuliaPy/PyCall.jl/issues/53
-roverModule = pyimport("RoverPylot")
-rover = roverModule[:PS3Rover](sysConfig.botConfig.deadZoneNorm, sysConfig.botConfig.maxRotSpeed, sysConfig.botConfig.maxTransSpeed)
-
-# Initialize
-rover[:initialize]()
-# Start the main loop
-juliaDataLoop(sysConfig, rover, fg, kafkaService)
+main()

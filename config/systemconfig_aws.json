@@ -1,14 +1,17 @@
 {
-  "botId":"Bot1",
-  "sessionPrefix":"Bot1",
+  "botId":"APRILTAGS_PROCESSOR",
+  "sessionPrefix":"",
   "sessionId":"",
   "kafkaConfig":
   {
-    "ip":"localhost",
+    "ip":"18.217.118.248",
     "port":9092,
     "rawImageChannelName":"rawImageStream",
     "statusNotificationChannelName": "envStatusNotifications",
-    "aprilTagsProcessedChannelName": "aprilTagsProcessed"
+    "aprilTagsProcessedChannelName": "aprilTagsProcessed",
+    "consumerBlockingMs": 1000,
+    "maxMessagesPerRead": 10
+
   },
   "botConfig":
   {
@@ -21,11 +24,11 @@
   },
   "cloudGraphsConfig":
   {
-    "neo4jHost": "localhost",
+     "neo4jHost": "ec2-18-218-0-248.us-east-2.compute.amazonaws.com",
      "neo4jPort": 7474,
      "neo4jUsername": "neo4j",
-     "neo4jPassword": "neo5j",
-     "mongoHost": "localhost",
+     "neo4jPassword": "SlamMe12",
+     "mongoHost": "ec2-18-220-108-112.us-east-2.compute.amazonaws.com",
      "mongoPort": 27017,
      "mongoIsUsingCredentials": false,
      "mongoPassword": "",
