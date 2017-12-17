@@ -1,0 +1,19 @@
+Thanks for importing Kafka.AprilTagDetection :)
+Thanks for importing Kafka.AprilTagDetection :)
+Thanks for importing Kafka.ImageData :)
+Thanks for importing Kafka.AprilTagDetections :)
+Thanks for importing Kafka.ImageData :)
+Thanks for importing Kafka.StatusNotification :)
+Thanks for importing Kafka.ImageData :)
+Thanks for importing Kafka.StatusNotification :)
+Thanks for importing RoverPose :)
+ --- Loading system config from './config/systemconfig_aws.json'...
+ --- Connecting to CloudGraphs instance ec2-18-216-168-208.us-east-2.compute.amazonaws.com...
+Changed internal API calls to use outside calls.
+Current session: RoverSam1_81ea3ea6
+ --- Connecting to Kafka instance ec2-18-217-118-248.us-east-2.compute.amazonaws.com...
+Kafka: Connecting to ec2-18-217-118-248.us-east-2.compute.amazonaws.com:9092...
+ --- Starting out transmission loop!
+ --- Connecting to Rover!
+ --- Success, starting main processing loop!
+[Julia Data Loop] Should run = true

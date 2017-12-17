@@ -91,7 +91,7 @@ function isPoseWorthy(roverPose::RoverPose)
     while deltaAbsAngRad > 2.0*pi
         deltaAbsAngRad -= 2.0*pi
     end
-    return deltaT > 2 || deltaDist > 0.5 || deltaAbsAngRad > pi / 8
+    return deltaT > 20 || deltaDist > 0.5 || deltaAbsAngRad > pi / 8
 end
 
 println("Thanks for importing RoverPose :)")
