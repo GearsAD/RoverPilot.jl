@@ -1,4 +1,4 @@
-### Some playtime with the little guys Rover2.
+### Some playtime with the little Rover2.
 ### REF: http://blog.leahhanson.us/post/julia/julia-calling-python.html
 
 # Installs
