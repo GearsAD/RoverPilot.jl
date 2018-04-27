@@ -13,17 +13,15 @@
 using Base
 using PyCall
 using FileIO
-using CloudGraphs
-using Caesar, IncrementalInference, RoME
-using KernelDensityEstimate
-using SlamInDB_APICommon
+using SynchronySDK
 using ArgParse
 # include("ExtensionMethods.jl")
 
 @everywhere include("./entities/RoverPose.jl")
+@everywhere include("./entities/SystemConfig.jl")
 
 # Allow the local directory to be used
-cd("/home/gears/roverlock");
+cd(Pkg.dir("RoverPilot"))
 unshift!(PyVector(pyimport("sys")["path"]), "")
 
 # Globals
@@ -32,31 +30,32 @@ shouldRun = true
 @everywhere sendPoseQueue = Channel{RoverPose}(100)
 
 """
-Send data to database.
+Send odometry and camera data to database at each keyframe/pose instantiation event via SynchronySDK.
 """
-function nodeTransmissionLoop(sysConfig::SystemConfig, fg::IncrementalInference.FactorGraph, kafkaService::KafkaService)
+function nodeTransmissionLoop(sysConfig::SystemConfig)
     # Get from sysConfig
     Podo=diagm([0.1;0.1;0.005]) # TODO ASK: Noise?
     N=100
 
     println("[SendNodes Loop] Started!")
     while shouldRun
-        try
-            pose = take!(sendPoseQueue)
-            println("[SendNodes Loop] SendQueue got message, sending $(poseIndex(pose))!")
-
-            @time lastPoseVertex, factorPose = addOdoFG!(fg, poseIndex(pose), odoDiff(pose), Podo, N=N, labels=["POSE", pose.poseId, sysConfig.botId])
-            # Now send the images.
-            for robotImg = pose.camImages
-                ksi = ImageData(string(Base.Random.uuid4()), pose.poseId, sysConfig.sessionId, String(poseIndex(pose)), robotImg.timestamp, robotImg.camJpeg, "jpg", Dict{String, String}())
-                @time sendRawImage(kafkaService, ksi)
-            end
-        catch e
-            println("[SendNodes Loop] Error seding node!")
-            bt = catch_backtrace()
-            showerror(STDOUT, e, bt)
-        end
+        # try
+        @show pose = take!(sendPoseQueue)
+        println("[SendNodes Loop] SendQueue got message, sending $(poseIndex(pose))!")
+        #
+        #     @time lastPoseVertex, factorPose = addOdoFG!(fg, poseIndex(pose), odoDiff(pose), Podo, N=N, labels=["VARIABLE", pose.poseId, sysConfig.botId])
+        #     # Now send the images.
+        #     for robotImg = pose.camImages
+        #         ksi = ImageData(string(Base.Random.uuid4()), pose.poseId, sysConfig.sessionId, String(poseIndex(pose)), robotImg.timestamp, robotImg.camJpeg, "jpg", Dict{String, String}())
+        #         @time sendRawImage(kafkaService, ksi)
+        #     end
+        # catch e
+        #     println("[SendNodes Loop] Error seding node!")
+        #     bt = catch_backtrace()
+        #     showerror(STDOUT, e, bt)
+        # end
         println("[SendNodes Loop] Sent message!")
+        sleep(1)
     end
     println("[SendNodes Loop] Done!")
 end
@@ -85,7 +84,7 @@ function juliaDataLoop(sysConfig::SystemConfig, rover)
                 put!(sendPoseQueue, curPose)
                 curPose = RoverPose(curPose) # Increment pose
             end
-            sleep(0.01)
+            sleep(0.005)
         end
     end
     print("[Julia Data Loop] I'm out!");
@@ -111,53 +110,53 @@ function main()
     parsedArgs = parse_commandline()
 
     println(" --- Loading system config from '$(parsedArgs["sysConfig"])'...")
-    sysConfig = readSystemConfigFile(parsedArgs["sysConfig"])
-    sysConfig.sessionId = sysConfig.botId * "_" * (!isempty(strip(sysConfig.sessionPrefix)) ? sysConfig.sessionPrefix * "_" : "") * string(Base.Random.uuid1())[1:8] #Name+SHA
+    syncrConfig = readSystemConfigFile(parsedArgs["sysConfig"])
+    syncrConfig.sessionId = syncrConfig.botId * "_" * (!isempty(strip(syncrConfig.sessionPrefix)) ? syncrConfig.sessionPrefix * "_" : "") * string(Base.Random.uuid1())[1:8] #Name+SHA
 
     # Connect to CloudGraphs
-    println(" --- Connecting to CloudGraphs instance $(sysConfig.cloudGraphsConfig.neo4jHost)...")
-    cloudGraph = connect(sysConfig.cloudGraphsConfig);
-    conn = cloudGraph.neo4j.connection;
-    # register types of interest in CloudGraphs
-    registerGeneralVariableTypes!(cloudGraph)
-    Caesar.usecloudgraphsdatalayer!()
-    println("Current session: $(sysConfig.sessionId)")
+    # println(" --- Connecting to CloudGraphs instance $(sysConfig.cloudGraphsConfig.neo4jHost)...")
+    # cloudGraph = connect(sysConfig.cloudGraphsConfig);
+    # conn = cloudGraph.neo4j.connection;
+    # # register types of interest in CloudGraphs
+    # registerGeneralVariableTypes!(cloudGraph)
+    # Caesar.usecloudgraphsdatalayer!()
+    # println("Current session: $(sysConfig.sessionId)")
 
     # Kafka Initialization - callbacks not used yet.
     # Kafka Initialization
-    println(" --- Connecting to Kafka instance $(sysConfig.kafkaConfig.ip)...")
-    function sessionMessageCallback(message)
-        @show typeof(message)
-    end
-    function robotMessageCallback(message)
-        @show message
-    end
-    kafkaService = KafkaService(sysConfig)
-    initialize(kafkaService, Vector{KafkaConsumer}())
-    # Send a status message to say we're up!
-    sendStatusNotification(kafkaService, StatusNotification(sysConfig.botId, sysConfig.sessionId, "ACTIVE"))
+    # println(" --- Connecting to Kafka instance $(sysConfig.kafkaConfig.ip)...")
+    # function sessionMessageCallback(message)
+    #     @show typeof(message)
+    # end
+    # function robotMessageCallback(message)
+    #     @show message
+    # end
+    # kafkaService = KafkaService(sysConfig)
+    # initialize(kafkaService, Vector{KafkaConsumer}())
+    # # Send a status message to say we're up!
+    # sendStatusNotification(kafkaService, StatusNotification(sysConfig.botId, sysConfig.sessionId, "ACTIVE"))
 
-    # Now start up our factor graph.
-    fg = Caesar.initfg(sessionname=sysConfig.sessionId, cloudgraph=cloudGraph)
+    # # Now start up our factor graph.
+    # fg = Caesar.initfg(sessionname=sysConfig.sessionId, cloudgraph=cloudGraph)
     # Initialize the factor graph and insert first pose.
-    lastPoseVertex = initFactorGraph!(fg, labels=[sysConfig.botId])
+    # lastPoseVertex = initFactorGraph!(fg, labels=[sysConfig.botId])
 
-    println(" --- Starting out transmission loop!")
-    sendLoop = @async nodeTransmissionLoop(sysConfig, fg, kafkaService)
+    # println(" --- Starting out transmission loop!")
+    # sendLoop = @async nodeTransmissionLoop(syncrConfig)
 
     # Let's do some importing
     # Ref: https://github.com/JuliaPy/PyCall.jl/issues/53
     println(" --- Connecting to Rover!")
     roverModule = pyimport("RoverPylot")
-    rover = roverModule[:PS3Rover](sysConfig.botConfig.deadZoneNorm, sysConfig.botConfig.maxRotSpeed, sysConfig.botConfig.maxTransSpeed)
+    rover = roverModule[:PS3Rover](syncrConfig.botConfig.deadZoneNorm, syncrConfig.botConfig.maxRotSpeed, syncrConfig.botConfig.maxTransSpeed)
     # Initialize
     rover[:initialize]()
 
-    println(" --- Current session: $(sysConfig.sessionId)")
+    println(" --- Current session: $(syncrConfig.sessionId)")
 
     # Start the main loop
     println(" --- Success, starting main processing loop!")
-    dataLoop = juliaDataLoop(sysConfig, rover)
+    dataLoop = juliaDataLoop(syncrConfig, rover)
 
     wait(dataLoop)
     wait(sendLoop)

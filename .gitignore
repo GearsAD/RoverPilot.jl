@@ -3,3 +3,4 @@
 *.jl.mem
 *.pyc
 deps/deps.jl
+rover20.pcm

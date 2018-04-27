@@ -27,7 +27,7 @@ BUTTON_CAMERA_DOWN = 2  # X button lowers camera
 MIN_BUTTON_LAG_SEC = 0.5
 
 # Avoid close-to-zero values on axis
-MIN_AXIS_ABSVAL    = 0.01
+MIN_AXIS_ABSVAL    = 1.0
 
 
 from rover import Rover20
@@ -183,8 +183,9 @@ class PS3Rover(Rover20):
 
         # Create a new state with the current image
         self.curRoverState = RoverState()
+        print self.axis(0), self.axis(1), self.axis(2), self.axis(3)
         trans = self.axis(1)
-        rot = -self.axis(2) #Direction modifier
+        rot = -self.axis(0) #Direction modifier
         # We're moving
         if abs(trans) > self.deadZoneNorm or abs(rot) > self.deadZoneNorm:
             if abs(trans) > abs(rot):
@@ -218,7 +219,7 @@ class PS3Rover(Rover20):
         elif value < -MIN_AXIS_ABSVAL:
             return -1
         else:
-            return 0
+            return value
 
 
     # Handles button bounce by waiting a specified time between button presses
