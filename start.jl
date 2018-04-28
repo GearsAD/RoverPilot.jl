@@ -15,7 +15,6 @@ using PyCall
 using FileIO
 using SynchronySDK
 using ArgParse
-# include("ExtensionMethods.jl")
 
 @everywhere include("./entities/RoverPose.jl")
 @everywhere include("./entities/SystemConfig.jl")
@@ -29,12 +28,65 @@ shouldRun = true
 # Let's use some local FIFO's here.
 @everywhere sendPoseQueue = Channel{RoverPose}(100)
 
+### SYNCHRONY CONFIG
+using Base
+using JSON, Unmarshal
+using SynchronySDK
+using SynchronySDK.DataHelpers
+
+# 0. Constants
+curtime = now()
+robotId = "Broekiestone"
+sessionId = "RoverRover"*"_$(Dates.year(curtime))$(Dates.month(curtime))$(Dates.day(curtime))T$(Dates.hour(curtime))_$(Dates.minute(curtime))_$(Dates.second(curtime))"
+
+# 1. Get a Synchrony configuration
+println(" - Retrieving Synchrony Configuration...")
+configFile = open(joinpath("config", "synchronyConfig_Local.json"))
+configData = JSON.parse(readstring(configFile))
+close(configFile)
+synchronyConfig = Unmarshal.unmarshal(SynchronyConfig, configData)
+
+println(" --- Configuring Synchrony example for:")
+println("  --- User: $(synchronyConfig.userId)")
+println("  --- Robot: $(robotId)")
+println("  --- Session: $(sessionId)")
+
+# 2. Confirm that the robot already exists, create if it doesn't.
+println(" - Creating or retrieving robot '$robotId'...")
+robot = nothing
+if(SynchronySDK.isRobotExisting(synchronyConfig, robotId))
+    println(" -- Robot '$robotId' already exists, retrieving it...")
+    robot = getRobot(synchronyConfig, robotId)
+else
+    # Create a new one
+    println(" -- Robot '$robotId' doesn't exist, creating it...")
+    newRobot = RobotRequest(robotId, "Brookstone Rover", "Weekend hackathon time!", "Active")
+    robot = addRobot(synchronyConfig, newRobot)
+end
+println(robot)
+
+# 3. Create or retrieve the session.
+# Get sessions, if it already exists, add to it.
+println(" - Creating or retrieving data session '$sessionId' for robot...")
+session = nothing
+if(SynchronySDK.isSessionExisting(synchronyConfig, robotId, sessionId))
+    println(" -- Session '$sessionId' already exists for robot '$robotId', retrieving it...")
+    session = getSession(synchronyConfig, robotId, sessionId)
+else
+    # Create a new one
+    println(" -- Session '$sessionId' doesn't exist for robot '$robotId', creating it...")
+    newSessionRequest = SessionDetailsRequest(sessionId, "A test dataset demonstrating data ingestion for a wheeled vehicle driving in a hexagon.", "Pose2")
+    session = addSession(synchronyConfig, robotId, newSessionRequest)
+end
+println(session)
+######
+
 """
 Send odometry and camera data to database at each keyframe/pose instantiation event via SynchronySDK.
 """
-function nodeTransmissionLoop(sysConfig::SystemConfig)
+function nodeTransmissionLoop(sysConfig::SystemConfig, robotId::String, sessionId::String, synchronyConfig::SynchronyConfig)
     # Get from sysConfig
-    Podo=diagm([0.1;0.1;0.005]) # TODO ASK: Noise?
+    # Podo=diagm([0.1;0.1;0.005]) # TODO ASK: Noise?
     N=100
 
     println("[SendNodes Loop] Started!")
@@ -42,6 +94,19 @@ function nodeTransmissionLoop(sysConfig::SystemConfig)
         # try
         @show pose = take!(sendPoseQueue)
         println("[SendNodes Loop] SendQueue got message, sending $(poseIndex(pose))!")
+
+        @show deltaMeasurement = odoDiff(pose) #[10.0;0;pi/3]
+        pOdo = diagm([0.1;0.1;0.005])
+        println(" - Measurement: Adding new odometry measurement '$deltaMeasurement'...")
+        newOdometryMeasurement = AddOdometryRequest(deltaMeasurement, pOdo)
+        addOdoResponse = addOdometryMeasurement(synchronyConfig, robotId, sessionId, newOdometryMeasurement)
+        println(" - Adding image data to node with label $(addOdoResponse.variable.label)")
+        index = 0
+        for robotImg = pose.camImages
+            bigDataImage = BigDataElementRequest("Camera_$index", "Mongo", description, base64encode(robotImg.camJpeg), "image/jpeg")
+            index = index + 1
+        end
+
         #
         #     @time lastPoseVertex, factorPose = addOdoFG!(fg, poseIndex(pose), odoDiff(pose), Podo, N=N, labels=["VARIABLE", pose.poseId, sysConfig.botId])
         #     # Now send the images.
@@ -55,7 +120,7 @@ function nodeTransmissionLoop(sysConfig::SystemConfig)
         #     showerror(STDOUT, e, bt)
         # end
         println("[SendNodes Loop] Sent message!")
-        sleep(1)
+        # sleep(1)
     end
     println("[SendNodes Loop] Done!")
 end
@@ -110,8 +175,8 @@ function main()
     parsedArgs = parse_commandline()
 
     println(" --- Loading system config from '$(parsedArgs["sysConfig"])'...")
-    syncrConfig = readSystemConfigFile(parsedArgs["sysConfig"])
-    syncrConfig.sessionId = syncrConfig.botId * "_" * (!isempty(strip(syncrConfig.sessionPrefix)) ? syncrConfig.sessionPrefix * "_" : "") * string(Base.Random.uuid1())[1:8] #Name+SHA
+    sysConfig = readSystemConfigFile(parsedArgs["sysConfig"])
+    sysConfig.sessionId = sysConfig.botId * "_" * (!isempty(strip(sysConfig.sessionPrefix)) ? sysConfig.sessionPrefix * "_" : "") * string(Base.Random.uuid1())[1:8] #Name+SHA
 
     # Connect to CloudGraphs
     # println(" --- Connecting to CloudGraphs instance $(sysConfig.cloudGraphsConfig.neo4jHost)...")
@@ -142,21 +207,21 @@ function main()
     # lastPoseVertex = initFactorGraph!(fg, labels=[sysConfig.botId])
 
     # println(" --- Starting out transmission loop!")
-    # sendLoop = @async nodeTransmissionLoop(syncrConfig)
+    sendLoop = @async nodeTransmissionLoop(sysConfig, robotId, sessionId, synchronyConfig)
 
     # Let's do some importing
     # Ref: https://github.com/JuliaPy/PyCall.jl/issues/53
     println(" --- Connecting to Rover!")
     roverModule = pyimport("RoverPylot")
-    rover = roverModule[:PS3Rover](syncrConfig.botConfig.deadZoneNorm, syncrConfig.botConfig.maxRotSpeed, syncrConfig.botConfig.maxTransSpeed)
+    rover = roverModule[:PS3Rover](sysConfig.botConfig.deadZoneNorm, sysConfig.botConfig.maxRotSpeed, sysConfig.botConfig.maxTransSpeed)
     # Initialize
     rover[:initialize]()
 
-    println(" --- Current session: $(syncrConfig.sessionId)")
+    println(" --- Current session: $(sessionId)")
 
     # Start the main loop
     println(" --- Success, starting main processing loop!")
-    dataLoop = juliaDataLoop(syncrConfig, rover)
+    dataLoop = juliaDataLoop(sysConfig, rover)
 
     wait(dataLoop)
     wait(sendLoop)
