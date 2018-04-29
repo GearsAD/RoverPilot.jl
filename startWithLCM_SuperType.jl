@@ -16,7 +16,7 @@ using FileIO
 using SynchronySDK
 using ArgParse
 
-using LCMCore, CaesarLCMTypes, BotCoreLCMTypes
+using LCMCore, CaesarLCMTypes
 
 @everywhere include("./entities/RoverPose.jl")
 @everywhere include("./entities/SystemConfig.jl")
@@ -36,13 +36,15 @@ using JSON, Unmarshal
 using SynchronySDK
 using SynchronySDK.DataHelpers
 
-function publishLCMOdoVariableFactor(lcm::LCM,
+function publishLCMOdoVariableFactorImage(lcm::LCM,
             utime::Int64,
             prevId::Union{Void, String},
             newId::String,
             deltaMeasurement::Vector{<:Real},
-            pOdo )
+            pOdo,
+            camBytes::Vector{UInt8})
   #
+  superType = brookstone_supertype_t()
 
   varmsg = generic_variable_t()
   varmsg.utime = utime
@@ -52,7 +54,7 @@ function publishLCMOdoVariableFactor(lcm::LCM,
   # varmsg.datalength::Int32
   # varmsg.data =
 
-  publish(lcm, "BROOKSTONE_NEW_VARIABLE", LCMCore.encode(varmsg))
+  superType.newvariable = varmsg
 
   fctdict = Dict{String, Any}()
   fctdict["podo"] = pOdo[:]
@@ -69,7 +71,22 @@ function publishLCMOdoVariableFactor(lcm::LCM,
   fctmsg.data = take!(IOBuffer(json(fctdict)))
   fctmsg.datalength = length(fctmsg.data)
 
-  publish(lcm, "BROOKSTONE_NEW_FACTOR", LCMCore.encode(fctmsg))
+  superType.newfactor = fctmsg
+
+  camImage = image_t()
+  camImage.utime = utime
+  camImage.width = 640
+  camImage.height = 480
+  camImage.row_stride = 3
+  camImage.pixelformat = 1196444237
+  camImage.size = length(camBytes)
+  camImage.data = camBytes
+  camImage.nmetadata = 0
+  camImage.metadata = Vector{image_metadata_t}()
+
+  superType.img = camImage
+
+  publish(lcm, "BROOKSTONE_ROVER", LCMCore.encode(superType))
 
   nothing
 end
@@ -97,26 +114,12 @@ function nodeTransmissionLoop(sysConfig::SystemConfig)
             # addOdoResponse = addOdometryMeasurement(synchronyConfig, robotId, sessionId, newOdometryMeasurement)
 
             # publish LCM node and factor messages
-            prevId = isnull(pose.prevPose) ? nothing : get(pose.prevPose).poseId
-            publishLCMOdoVariableFactor(lcm, utime, prevId, pose.poseId, deltaMeasurement, pOdo)
+            prevIndex = isnull(pose.prevPose) ? "" : "x$(get(pose.prevPose).poseIndex)"
 
             println(" - Adding image data to node with timestamp $utime")
-            # index = 0
             for robotImg = pose.camImages
+                publishLCMOdoVariableFactorImage(lcm, utime, prevIndex, "x$(pose.poseIndex)", deltaMeasurement, pOdo, take!(IOBuffer(robotImg.camJpeg)))
                 # REF: https://github.com/RobotLocomotion/libbot/blob/master/bot2-core/lcmtypes/bot_core_image_t.lcm#L26-L62
-
-                imgBytes = take!(IOBuffer(robotImg.camJpeg))
-                camImage = image_t()
-                camImage.utime = utime
-                camImage.width = 640
-                camImage.height = 480
-                camImage.row_stride = 3
-                camImage.pixelformat = 1196444237
-                camImage.size = length(imgBytes)
-                camImage.data = imgBytes
-                camImage.nmetadata = 0
-                camImage.metadata = Vector{image_metadata_t}()
-                publish(lcm, "BROOKSTONE_CAM_IMAGE", LCMCore.encode(camImage))
             end
             println("[SendNodes Loop] Sent message!")
             # sleep(1)
